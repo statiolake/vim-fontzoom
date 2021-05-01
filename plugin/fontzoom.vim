@@ -3,7 +3,9 @@
 " Author : thinca <thinca+vim@gmail.com>
 " License: zlib License
 
-if exists('g:loaded_fontzoom') || !has('gui_running')
+" FIXME: Neovim support assumes you are running on Neovim-qt.
+let s:supported = has('nvim') || has('gui_running')
+if exists('g:loaded_fontzoom') || !s:supported
   finish
 endif
 let g:loaded_fontzoom = 1
@@ -19,10 +21,26 @@ function! s:change_fontsize(font, size)
     \   string('\=max([1,' . a:size . '])'))), ',')
 endfunction
 
+function! s:set_guifont(font)
+  " If it has GUI shim use it
+  if has('nvim') && exists("*GuiFont")
+    " the second argument is to supress bad metric warning.
+    call GuiFont(a:font, 1)
+  else
+    let &guifont = a:font
+  endif
+endfunction
+
+function! s:set_guifontwide(font)
+  let &guifontwide = a:font
+endfunction
+
 function! s:fontzoom(size, reset)
   if a:reset
     if exists('s:keep')  " Reset font size.
-      let [&guifont, &guifontwide, &lines, &columns] = s:keep
+      let [guifont, guifontwide, &lines, &columns] = s:keep
+      call s:set_guifont(guifont)
+      call s:set_guifontwide(guifontwide)
       unlet! s:keep
     endif
   elseif a:size ==# ''
@@ -32,8 +50,8 @@ function! s:fontzoom(size, reset)
       let s:keep = [&guifont, &guifontwide, &lines, &columns]
     endif
     let newsize = (a:size =~# '^[+-]' ? 'submatch(0)' : '') . a:size
-    let &guifont = s:change_fontsize(&guifont, newsize)
-    let &guifontwide = s:change_fontsize(&guifontwide, newsize)
+    call s:set_guifont(s:change_fontsize(&guifont, newsize))
+    call s:set_guifontwide(s:change_fontsize(&guifontwide, newsize))
     " Keep window size if possible.
     let [&lines, &columns] = s:keep[2 :]
   endif
@@ -43,7 +61,7 @@ endfunction
 if !exists('g:fontzoom_pattern')
   " TODO: X11 is not tested because I do not have the environment.
   let g:fontzoom_pattern =
-  \   has('win32')   || has('win64') ||
+  \   has('nvim')    || has('win32')   || has('win64') ||
   \   has('mac')     || has('macunix') ? ':h\zs\d\+':
   \   has('gui_gtk') || has('gui_qt')  ? '\s\+\zs\d\+$':
   \   has('X11')                       ? '\v%([^-]*-){6}\zs\d+\ze%(-[^-]*){7}':
